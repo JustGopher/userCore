@@ -7,6 +7,8 @@
     <title>后台管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         /* 自定义滚动条 */
         ::-webkit-scrollbar {
@@ -34,12 +36,12 @@
     <nav>
         <ul class="space-y-2">
             <li>
-                <a href="index.html" class="flex items-center p-2 hover:bg-gray-700 rounded">
+                <a href="/index" class="flex items-center p-2 hover:bg-gray-700 rounded">
                     <i data-feather="home" class="w-4 h-4 mr-2"></i> 首页概览
                 </a>
             </li>
             <li>
-                <a href="users.html" class="flex items-center p-2 hover:bg-gray-700 rounded">
+                <a href="/userList" class="flex items-center p-2 hover:bg-gray-700 rounded">
                     <i data-feather="users" class="w-4 h-4 mr-2"></i> 用户管理
                 </a>
             </li>
@@ -83,8 +85,8 @@
             <div class="bg-white p-6 rounded-xl shadow">
                 <div class="flex justify-between items-center">
                     <div>
-                        <p class="text-gray-500 text-sm">注册用户</p>
-                        <p class="text-3xl font-bold mt-2">2,843</p>
+                        <p class="text-gray-500 text-sm">注册总用户</p>
+                        <p class="text-3xl font-bold mt-2">{{.AllUserCount}}</p>
                     </div>
                     <div class="bg-blue-100 p-3 rounded-full">
                         <i data-feather="users" class="w-6 h-6 text-blue-600"></i>
@@ -97,11 +99,11 @@
             <div class="bg-white p-6 rounded-xl shadow">
                 <div class="flex justify-between items-center">
                     <div>
-                        <p class="text-gray-500 text-sm">注册用户</p>
-                        <p class="text-3xl font-bold mt-2">2,843</p>
+                        <p class="text-gray-500 text-sm">管理员</p>
+                        <p class="text-3xl font-bold mt-2">{{.AdministratorsCount}}</p>
                     </div>
-                    <div class="bg-blue-100 p-3 rounded-full">
-                        <i data-feather="users" class="w-6 h-6 text-blue-600"></i>
+                    <div class="bg-red-100 p-3 rounded-full">
+                        <i data-feather="users" class="w-6 h-6 text-yellow-600"></i>
                     </div>
                 </div>
                 <div class="mt-4 text-sm">
@@ -111,11 +113,11 @@
             <div class="bg-white p-6 rounded-xl shadow">
                 <div class="flex justify-between items-center">
                     <div>
-                        <p class="text-gray-500 text-sm">注册用户</p>
-                        <p class="text-3xl font-bold mt-2">2,843</p>
+                        <p class="text-gray-500 text-sm">普通用户</p>
+                        <p class="text-3xl font-bold mt-2">{{.OrdinaryUsersCount}}</p>
                     </div>
-                    <div class="bg-blue-100 p-3 rounded-full">
-                        <i data-feather="users" class="w-6 h-6 text-blue-600"></i>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i data-feather="users" class="w-6 h-6 text-white-600"></i>
                     </div>
                 </div>
                 <div class="mt-4 text-sm">
@@ -128,16 +130,17 @@
         <!-- 访问趋势图表 -->
         <div class="bg-white p-6 rounded-xl shadow">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">访问趋势</h3>
+                <h3 class="text-lg font-semibold">新用户增加趋势</h3>
                 <div class="flex gap-2">
-                    <button class="text-sm px-3 py-1 rounded-lg bg-gray-100">7天</button>
-                    <button class="text-sm px-3 py-1 rounded-lg hover:bg-gray-100">30天</button>
+                    <button id="btn7days" class="text-sm px-3 py-1 rounded-lg bg-gray-100">7天</button>
+                    <button id="btn30days" class="text-sm px-3 py-1 rounded-lg hover:bg-gray-100">30天</button>
                 </div>
             </div>
-            <div class="h-80 bg-gray-50 rounded-lg flex items-center justify-center">
-                <i data-feather="bar-chart-2" class="w-16 h-16 text-gray-300"></i>
+            <div style="height: 550px" class=" bg-gray-50 rounded-lg flex items-center justify-center">
+                <canvas id="myChart" style="height: 100%;width: 100%"></canvas>
             </div>
         </div>
+
     </div>
 </main>
 
@@ -157,6 +160,102 @@
 
     // 初始化图标
     feather.replace();
+
+
+    let myChart = null;
+    // 获取按钮
+    const btn7days = document.getElementById('btn7days');
+    const btn30days = document.getElementById('btn30days');
+
+    function initChart(labels, data) {
+        const ctx = document.getElementById('myChart').getContext('2d');
+
+        // 如果图表实例已存在，销毁它
+        if (myChart) {
+            myChart.destroy();
+        }
+
+        // 创建新的图表实例
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '新用户注册',
+                    data: data,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',  // 填充颜色
+                    fill: true,
+                    tension: 0.4,  // 平滑曲线
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // 保持图表的纵横比
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+
+
+    function fetchData(days = 7) {
+        fetch('/indexData')
+            .then(response => response.json())  // 获取JSON数据
+            .then(data => {
+                console.log('返回的数据:', data);  // 输出返回的数据，确保它已经是合法的JSON对象
+
+                let labels = [];
+                let userCount = [];
+
+                // 根据选择的天数使用不同的数据
+                if (days === 7) {
+                    labels = data.date7;  // 使用日期
+                    // 将 count7 数组中的字符串转换为数字
+                    userCount = data.count7.map(count => parseInt(count, 10));  // 将字符串转为数字
+                } else if (days === 30) {
+                    labels = data.date30;
+                    // 将 count30 数组中的字符串转换为数字
+                    userCount = data.count30.map(count => parseInt(count, 10));  // 将字符串转为数字
+                }
+
+                console.log('Labels:', labels);
+                console.log('User Count:', userCount);
+
+                // 渲染图表
+                initChart(labels, userCount);
+            })
+            .catch(error => {
+                console.error('数据获取失败:', error);
+            });
+    }
+
+    // 事件监听器 - 7天按钮
+    document.getElementById('btn7days').addEventListener('click', function () {
+        // 切换选中样式
+        btn7days.classList.remove('hover:bg-gray-100');
+        btn7days.classList.add('bg-gray-100');
+        btn30days.classList.add('hover:bg-gray-100');
+        btn30days.classList.remove('bg-gray-100');
+        fetchData(7);
+    });
+
+    // 事件监听器 - 30天按钮
+    document.getElementById('btn30days').addEventListener('click', function () {
+        btn7days.classList.add('hover:bg-gray-100');
+        btn7days.classList.remove('bg-gray-100');
+        btn30days.classList.remove('hover:bg-gray-100');
+        btn30days.classList.add('bg-gray-100');
+        fetchData(30);
+    });
+
+
+    // 初始加载 7 天数据
+    fetchData(7);
 </script>
 </body>
 
