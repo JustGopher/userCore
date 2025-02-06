@@ -7,6 +7,7 @@
     <title>后台管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/feather-icons"></script>
+<!--    <script src="https://code.jquery.com/jquery-3.7.1.min.js">-->
     <style>
         /* 自定义滚动条 */
         ::-webkit-scrollbar {
@@ -94,7 +95,7 @@
                     <option value="0">禁用</option>
                 </select>
             </div>
-            <button onclick="openUserModal()"
+            <button onclick="openUserAdd()"
                     class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 whitespace-nowrap">
                 <i data-feather="plus"></i>
                 新建用户
@@ -107,6 +108,7 @@
                 <thead class="bg-gray-50">
                 <tr>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">用户名</th>
+                    <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">邮箱</th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">角色</th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">最后登录</th>
                     <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">状态</th>
@@ -114,27 +116,43 @@
                 </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
+
+                {{range .}}
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
-                            <img src="https://via.placeholder.com/40" class="w-8 h-8 rounded-full">
                             <div>
-                                <p class="font-medium">张三</p>
-                                <p class="text-sm text-gray-500">zhangsan@example.com</p>
+                                <p class="font-medium">{{.UserName}}</p>
                             </div>
                         </div>
                     </td>
                     <td class="px-6 py-4">
-                        <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">管理员</span>
+                        <div class="flex items-center gap-3">
+                            <div>
+                                <p class="font-medium">{{.Email}}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {{if eq .Role "管理员"}}
+                        <span class="px-2 py-1 bg-yellow-100 text-red-800 rounded-full text-sm">&nbsp{{.Role}}&nbsp</span>
+                        {{else if eq .Role "普通用户"}}
+                        <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">{{.Role}}</span>
+                        {{end}}
                     </td>
                     <td class="px-6 py-4">2024-03-15 14:30</td>
                     <td class="px-6 py-4">
+                        {{if eq .Status 1}}
                         <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">启用</span>
+                        {{else}}
+                        <span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-sm">禁用</span>
+                        {{end}}
                     </td>
                     <td class="px-6 py-4">
                         <div class="flex gap-2">
                             <button class="p-2 hover:bg-gray-100 rounded">
-                                <i data-feather="edit" onclick="openUserModal()" class="w-4 h-4 text-blue-600"></i>
+                                <i id="update" data-feather="edit" onclick="openUserUpdate(this)"  class="w-4 h-4 text-blue-600"
+                                   data-id="{{.UserId}}" data-name="{{.UserName}}" data-email="{{.Email}}" data-role="{{.Role}}" data-status="{{.Status}}" ></i>
                             </button>
                             <button class="p-2 hover:bg-gray-100 rounded">
                                 <i data-feather="trash-2" onclick="deleteUser()" class="w-4 h-4 text-red-600"></i>
@@ -142,6 +160,8 @@
                         </div>
                     </td>
                 </tr>
+                {{end}}
+
                 <!-- 更多用户数据... -->
                 </tbody>
             </table>
@@ -159,8 +179,51 @@
         </div>
     </div>
 
-    <!-- 用户模态框 (共用) -->
-    <div id="userModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+    <!-- 修改用户 -->
+    <div id="userUpdate" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md">
+            <h3 class="text-xl font-bold mb-4">修改用户</h3>
+            <form class="space-y-4" action="/updateUser" method="POST">
+                <div>
+                    <label id="up-label" class="block text-sm font-medium mb-1">ID:?</label>
+                    <input name="userId" id="up-id" type="text" class="hidden w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">用户名</label>
+                    <input name="userName" id="up-username" type="text" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">邮箱</label>
+                    <input name="email" id="up-email" type="email" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">角色</label>
+                    <select name="role" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" id="role">
+                        <option id="up-role1" value="1">普通用户</option>
+                        <option id="up-role2" value="2">管理员</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">用户状态</label>
+                    <select name="status" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" id="userStatus">
+                        <option id="up-status1" value="1">启用</option>
+                        <option id="up-status0" value="0">禁用</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeUserUpdate()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                        取消
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        提交
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 新建用户 -->
+    <div id="userAdd" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl p-6 w-full max-w-md">
             <h3 class="text-xl font-bold mb-4">新建用户</h3>
             <form class="space-y-4">
@@ -174,13 +237,13 @@
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium mb-1">用户状态</label>
-                    <select class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" id="userStatus">
+                    <select class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" id="userStatus2">
                         <option value="1">启用</option>
                         <option value="0">禁用</option>
                     </select>
                 </div>
                 <div class="flex justify-end gap-2">
-                    <button type="button" onclick="closeUserModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
+                    <button type="button" onclick="closeUserAdd()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">
                         取消
                     </button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
@@ -193,24 +256,63 @@
 
     <script>
         // 用户管理页面专属逻辑
-        function openUserModal() {
-            document.getElementById('userModal').classList.remove('hidden');
+        function openUserUpdate(comment) {
+            document.getElementById('userUpdate').classList.remove('hidden');
+            const id = comment.getAttribute('data-id');
+            const userName = comment.getAttribute('data-name');
+            const email = comment.getAttribute('data-email')
+            const role = comment.getAttribute('data-role')
+            const status = comment.getAttribute('data-status')
+            document.getElementById("up-id").value = id
+            document.getElementById("up-label").innerHTML="ID: " + id
+            document.getElementById("up-username").value = userName
+            document.getElementById("up-email").value = email
+            if (role==="管理员"){
+                document.getElementById("up-role2").selected = true
+            }else{
+                document.getElementById("up-role1").selected = true
+            }
+            if (status === "1"){
+                // confirm(status)
+                document.getElementById("up-status1").selected = true
+                document.getElementById("up-status0").selected = false
+            }else {
+                // confirm(status)
+                document.getElementById("up-status1").selected = false
+                document.getElementById("up-status0").selected = true
+            }
         }
 
-        function closeUserModal() {
-            document.getElementById('userModal').classList.add('hidden');
+        function closeUserUpdate() {
+            document.getElementById('userUpdate').classList.add('hidden');
         }
 
         // 点击模态框外部关闭
-        document.getElementById('userModal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('userModal')) {
+        document.getElementById('userUpdate').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('userUpdate')) {
+                closeUserModal();
+            }
+        });
+
+        // 用户管理页面专属逻辑
+        function openUserAdd() {
+            document.getElementById('userAdd').classList.remove('hidden');
+        }
+
+        function closeUserAdd() {
+            document.getElementById('userAdd').classList.add('hidden');
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('userAdd').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('userAdd')) {
                 closeUserModal();
             }
         });
 
         function deleteUser() {
             if (confirm('确定要删除该用户吗？')) {
-                // 删除用户逻辑
+                window.location.herf="/delUser"
             }
         }
     </script>
@@ -226,7 +328,7 @@
     function logout() {
         if (confirm('确定要退出系统吗？')) {
             localStorage.clear();
-            window.location.href = 'login.html';
+            window.location.href = '/logout';
         }
     }
 

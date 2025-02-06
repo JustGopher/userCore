@@ -38,6 +38,8 @@ func main() {
 		Methods(http.MethodGet)
 	r.HandleFunc("/userList", handlers.UserList).
 		Methods(http.MethodGet)
+	r.HandleFunc("/updateUser", handlers.UpdateUser).
+		Methods(http.MethodPost)
 	// 启动服务
 	db.NewUsers(7)
 	err := http.ListenAndServe("localhost:8086", r)

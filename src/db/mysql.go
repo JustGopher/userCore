@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 	"userCore/src/config"
+	"userCore/src/object"
 )
 
 var db *sql.DB
@@ -45,6 +46,7 @@ func InitDB(cf config.Config) {
 	log.Println("Successfully connected to the database!")
 }
 
+// NewUsers 获取 day 天内日期和新增用户数
 func NewUsers(day int) ([]string, []string) {
 	// 预处理
 	stmt, err := db.Prepare("SELECT DATE(created_at) AS registration_date, COUNT(*) AS user_count FROM user WHERE created_at >= CURDATE() - INTERVAL ? DAY GROUP BY registration_date ORDER BY registration_date;")
@@ -58,7 +60,7 @@ func NewUsers(day int) ([]string, []string) {
 		}
 	}()
 	// 查询
-	rows, err := stmt.Query(day - 1)
+	rows, err := stmt.Query(day)
 	if err != nil {
 		fmt.Println("查询失败")
 		return nil, nil
@@ -87,6 +89,7 @@ func NewUsers(day int) ([]string, []string) {
 	return res.date, res.count
 }
 
+// GetAllUserCount 获取用户总数
 func GetAllUserCount() int {
 	// 预处理
 	stmt, err := db.Prepare("SELECT count(*) from user")
@@ -110,6 +113,7 @@ func GetAllUserCount() int {
 	return c
 }
 
+// GetAllAdministratorsCount 获取管理员总数
 func GetAllAdministratorsCount() int {
 	// 预处理
 	stmt, err := db.Prepare("SELECT count(*) from user where role_id=2")
@@ -132,6 +136,8 @@ func GetAllAdministratorsCount() int {
 	fmt.Println(c)
 	return c
 }
+
+// GetAllOrdinaryUsersCount 获取普通用户总数
 func GetAllOrdinaryUsersCount() int {
 	// 预处理
 	stmt, err := db.Prepare("SELECT count(*) from user where role_id=1")
@@ -153,4 +159,83 @@ func GetAllOrdinaryUsersCount() int {
 	}
 	fmt.Println(c)
 	return c
+}
+
+// QueryByPage 分页查询
+func QueryByPage(page int, num int) []object.User {
+	stmt, err := db.Prepare("select u.user_id,u.user_name,u.email,u.status,r.name as role from user u,role r where u.role_id = r.role_id order by u.user_id limit ?,?;")
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+
+	rows, err := stmt.Query(page, num)
+	if err != nil {
+		fmt.Println("查询失败")
+		return nil
+	}
+	defer func() {
+		if rows != nil {
+			rows.Close()
+		}
+	}()
+
+	users := []object.User{}
+	for rows.Next() {
+		user := object.User{}
+		rows.Scan(&(user.UserId), &(user.UserName), &(user.Email), &(user.Status), &(user.Role))
+		users = append(users, user)
+	}
+	return users
+}
+
+func QueryUserById(id string) (object.User, error) {
+	stmt, err := db.Prepare("SELECT user_id, user_name, email, status, role_id from user where user.user_id=?")
+	if err != nil {
+		log.Println("预处理失败", err)
+		return object.User{}, err
+	}
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+
+	user := object.User{}
+	err = stmt.QueryRow(id).Scan(&(user.UserId), &(user.UserName), &(user.Email), &(user.Status), &(user.RoleId))
+	if err != nil {
+		log.Println("查询失败", err)
+		return object.User{}, err
+	}
+	return user, nil
+}
+
+// UpdateUser 更新用户信息
+func UpdateUser(user object.User) string {
+	role := user.Role
+	if role == "管理员" {
+		user.RoleId = 2
+	} else {
+		user.RoleId = 1
+	}
+	stmt, _ := db.Prepare("update user set user_name = ?,email = ?,status= ?,role_id= ? where user_id = ?")
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+	r, _ := stmt.Exec(user.UserName, user.Email, user.Status, user.RoleId, user.UserId)
+	count, _ := r.RowsAffected()
+	if count > 0 {
+		log.Println("修改成功")
+		return "true"
+	} else {
+		log.Println("修改失败")
+		return "false"
+	}
 }
