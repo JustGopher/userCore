@@ -14,6 +14,14 @@ import (
 
 var db *sql.DB
 
+type SearchUserList struct {
+	UserName string
+	RoleId   string
+	Status   string
+	Page     int
+	Num      int
+}
+
 func InitDB(cf config.Config) {
 	fmt.Println(cf.Mysql.Host)
 	mysqlConfig := mysql.Config{
@@ -109,7 +117,6 @@ func GetAllUserCount() int {
 		log.Println("查询失败", err)
 		return -1
 	}
-	fmt.Println(c)
 	return c
 }
 
@@ -194,8 +201,91 @@ func QueryByPage(page int, num int) []object.User {
 	return users
 }
 
+// QueryUserList 按条件查询用户列表
+func QueryUserList(search SearchUserList) []object.User {
+	sql1 := `select u.user_id,u.user_name,u.email,u.status,r.name as role from user u,role r where u.role_id = r.role_id `
+	sql2 := `order by u.user_id limit ?,?;`
+	if search.UserName != "" {
+		sql1 += `and u.user_name like "%` + search.UserName + `%" `
+	}
+	if search.RoleId != "" {
+		sql1 += `and u.role_id = ` + search.RoleId + ` `
+	}
+	if search.Status != "" {
+		sql1 += `and u.status = ` + search.Status + ` `
+	}
+	sql := sql1 + sql2
+	log.Println(sql)
+	stmt, err := db.Prepare(sql)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+	rows, err := stmt.Query((search.Page-1)*search.Num, search.Num)
+	if err != nil {
+		fmt.Println("查询失败", err)
+		return nil
+	}
+	defer func() {
+		if rows != nil {
+			rows.Close()
+		}
+	}()
+
+	users := []object.User{}
+	count := 0
+	for rows.Next() {
+		user := object.User{}
+		rows.Scan(&(user.UserId), &(user.UserName), &(user.Email), &(user.Status), &(user.Role))
+		users = append(users, user)
+		count++
+	}
+	return users
+}
+
+// QueryUserListCount 按条件查询用户数量
+func QueryUserListCount(search SearchUserList) int {
+	sql1 := `select count(u.user_id) from user u,role r where u.role_id = r.role_id `
+	sql2 := `order by u.user_id;`
+	if search.UserName != "" {
+		sql1 += `and u.user_name like "%` + search.UserName + `%" `
+	}
+	if search.RoleId != "" {
+		sql1 += `and u.role_id = ` + search.RoleId + ` `
+	}
+	if search.Status != "" {
+		sql1 += `and u.status = ` + search.Status + ` `
+	}
+	sql := sql1 + sql2
+	log.Println(sql)
+	stmt, err := db.Prepare(sql)
+	if err != nil {
+		log.Println("预处理失败", err)
+		return -1
+	}
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+	// 查询
+	var c int
+	err = stmt.QueryRow().Scan(&c)
+	if err != nil {
+		log.Println("查询失败", err)
+		return -1
+	}
+	return c
+}
+
+// QueryUserById 通过 ID 查询用户
 func QueryUserById(id string) (object.User, error) {
-	stmt, err := db.Prepare("SELECT user_id, user_name, email, status, role_id from user where user.user_id=?")
+	stmt, err := db.Prepare("SELECT user_id, user_name, email, status, role_id from user where user_id=?")
 	if err != nil {
 		log.Println("预处理失败", err)
 		return object.User{}, err
@@ -215,27 +305,113 @@ func QueryUserById(id string) (object.User, error) {
 	return user, nil
 }
 
-// UpdateUser 更新用户信息
-func UpdateUser(user object.User) string {
-	role := user.Role
-	if role == "管理员" {
-		user.RoleId = 2
-	} else {
-		user.RoleId = 1
+// QueryUserByName 通过用户名查询用户
+func QueryUserByName(userName string) (object.User, error) {
+	stmt, err := db.Prepare("SELECT user_id, password, status from user where user_name=?")
+	if err != nil {
+		log.Println("预处理失败", err)
+		return object.User{}, err
 	}
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+
+	user := object.User{}
+
+	rows, err := stmt.Query(userName)
+	if err != nil {
+		log.Println("查询失败", err)
+		return object.User{}, err
+	}
+	defer func() {
+		if rows != nil {
+			rows.Close()
+		}
+	}()
+
+	if rows.Next() {
+		err = rows.Scan(&(user.UserId), &(user.Password), &(user.Status))
+		if err != nil {
+			return object.User{}, err
+		}
+	}
+
+	return user, nil
+}
+
+// UpdateUser 更新用户信息
+func UpdateUser(user object.User) bool {
 	stmt, _ := db.Prepare("update user set user_name = ?,email = ?,status= ?,role_id= ? where user_id = ?")
 	defer func() {
 		if stmt != nil {
 			stmt.Close()
 		}
 	}()
-	r, _ := stmt.Exec(user.UserName, user.Email, user.Status, user.RoleId, user.UserId)
+	r, err := stmt.Exec(user.UserName, user.Email, user.Status, user.RoleId, user.UserId)
+	if err != nil {
+		log.Println("添加失败", err)
+		return false
+	}
 	count, _ := r.RowsAffected()
 	if count > 0 {
 		log.Println("修改成功")
-		return "true"
+		return true
 	} else {
-		log.Println("修改失败")
-		return "false"
+		log.Println("修改失败", err)
+		return false
+	}
+}
+
+// UserAdd 添加用户
+func UserAdd(user object.User) bool {
+	stmt, _ := db.Prepare("insert into user(user_name, password, email, status, role_id) values (?,?,?,?,?)")
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+	r, err := stmt.Exec(user.UserName, user.Password, user.Email, user.Status, user.RoleId)
+	if err != nil {
+		log.Println("添加失败", err)
+		return false
+	}
+	count, _ := r.RowsAffected()
+	if count > 0 {
+		log.Println("添加成功")
+		return true
+	} else {
+		log.Println("添加失败", err)
+		return false
+	}
+}
+
+// UserDelById 删除用户
+func UserDelById(roleId int) bool {
+	stmt, err := db.Prepare("delete from user where user_id = ?")
+	if err != nil {
+		log.Println("删除用户失败")
+		return false
+	}
+	defer func() {
+		if stmt != nil {
+			stmt.Close()
+		}
+	}()
+
+	r, err := stmt.Exec(roleId)
+	if err != nil {
+		log.Println("执行用户失败")
+		return false
+	}
+
+	count, err := r.RowsAffected()
+	if count > 0 {
+		log.Println("删除用户成功")
+		return true
+	} else {
+		log.Println("删除用户失败")
+		return false
 	}
 }

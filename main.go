@@ -23,10 +23,17 @@ func init() {
 
 func main() {
 	r := mux.NewRouter()
+
 	// 注册中间件
 	r.Use(middleware.NewLoginMiddleWareBuilder().
 		IgnorePaths("/login").
 		Build)
+	r.Use(middleware.NewPermissionMiddleWareBuilder().
+		ControlPathsAdd("/userAdd").
+		ControlPathsAdd("/userDel").
+		ControlPathsAdd("/userUpdate").
+		Build)
+
 	// 注册路由
 	r.HandleFunc("/login", auth.Login).
 		Methods(http.MethodGet, http.MethodPost)
@@ -38,11 +45,15 @@ func main() {
 		Methods(http.MethodGet)
 	r.HandleFunc("/userList", handlers.UserList).
 		Methods(http.MethodGet)
-	r.HandleFunc("/updateUser", handlers.UpdateUser).
+	r.HandleFunc("/userUpdate", handlers.UpdateUser).
 		Methods(http.MethodPost)
+	r.HandleFunc("/userAdd", handlers.UserAdd).
+		Methods(http.MethodPost)
+	r.HandleFunc("/userDel", handlers.UserDel).
+		Methods(http.MethodPost)
+
 	// 启动服务
-	db.NewUsers(7)
-	err := http.ListenAndServe("localhost:8086", r)
+	err := http.ListenAndServe("localhost:8087", r)
 	if err != nil {
 		log.Fatal("启动服务失败，err=", err)
 	}

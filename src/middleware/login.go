@@ -29,11 +29,11 @@ func (l *LoginMiddleWareBuilder) Build(next http.Handler) http.Handler {
 			}
 		}
 
-		cookies, err := r.Cookie("user")
+		cookies, err := r.Cookie("userId")
 		// cookies 不存在，则重定向
 		if err != nil || cookies.Value == "" {
 			log.Println(r.URL.Path, ":cookie不存在")
-			w.WriteHeader(301)
+			w.WriteHeader(302)
 			tmpl, _ := template.ParseFiles("view/login.html")
 			err := tmpl.Execute(w, nil)
 			if err != nil {
